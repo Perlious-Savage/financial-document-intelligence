@@ -1,16 +1,16 @@
 """Extraction backends behind one interface.
 
-Three backends, selected by MODEL_BACKEND:
+Two backends, selected by MODEL_BACKEND:
 
-  stub    deterministic, no model, no GPU. Lets the container and the API run and be
-          tested anywhere, including CI.
-  remote  calls a GPU inference service (the Colab notebook exposes one).
-  local   loads the fine-tuned model in-process; needs torch and a GPU to be useful.
+  stub    deterministic, no model, no GPU. Returns a fixed synthetic receipt so the
+          container and the API run and can be tested anywhere, including CI.
+  remote  calls a GPU inference service over HTTP. The serving cell in
+          notebooks/run_colab.ipynb is a starting point, but this path has not been
+          verified end to end (see that notebook's notes).
 
-The CPU container ships with `stub` so that `docker run` works with no GPU attached.
-That is a real architectural split, not a workaround: extraction is the only part of
-this pipeline that needs a GPU, and coupling the API's availability to a GPU would be
-a poor design.
+The CPU container ships with `stub`, so the deployed API exercises validation and
+routing, not the model. The fine-tuned model has only been run offline, through
+`trainer.predict` in src/train_extractor.py.
 """
 
 from __future__ import annotations
@@ -132,8 +132,7 @@ def extract(doc_id: str, image_bytes: bytes | None = None) -> ExtractedReceipt:
         if image_bytes is None:
             raise ValueError("remote backend needs the document bytes")
         return _remote(doc_id, image_bytes)
-    if BACKEND == "local":
-        from .local_backend import predict  # imported lazily; needs torch
-
-        return predict(doc_id, image_bytes)
-    return _stub(doc_id)
+    if BACKEND == "stub":
+        return _stub(doc_id)
+    # Fail loudly rather than silently falling back to the stub on a typo.
+    raise ValueError(f"Unknown MODEL_BACKEND {BACKEND!r}; supported: 'stub', 'remote'")

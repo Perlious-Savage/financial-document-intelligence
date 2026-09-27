@@ -46,12 +46,14 @@ def sensitivity(results: list[dict], key: str) -> dict:
     for record in results:
         groups.setdefault(record[key], []).append(record["test_f1"])
     means = {value: statistics.mean(scores) for value, scores in groups.items()}
+    values = {f"{k:g}": round(v, 4) for k, v in sorted(means.items())}
     if len(means) < 2:
-        return {"values": means, "spread": 0.0}
+        # Only one value was swept, so there is nothing to compare it against.
+        return {"values": values, "spread": None, "note": "not swept"}
     return {
-        "values": {str(k): round(v, 4) for k, v in sorted(means.items())},
+        "values": values,
         "spread": round(max(means.values()) - min(means.values()), 4),
-        "best": str(max(means, key=means.get)),
+        "best": f"{max(means, key=means.get):g}",
     }
 
 

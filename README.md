@@ -5,7 +5,9 @@ confidence-based routing to human review.
 
 **Model:** [perlious-Savage/layoutlmv3-cord-extraction](https://huggingface.co/perlious-Savage/layoutlmv3-cord-extraction)
 
-Every figure below is reproducible from this repository. Raw outputs are in [`artifacts/`](artifacts/).
+Every figure below comes from code in this repository. Raw outputs are in [`artifacts/`](artifacts/);
+results from the Colab GPU runs were transcribed there from the run logs, and `mlflow.db` is the
+machine-written record of the hyperparameter sweep.
 
 ---
 
@@ -22,6 +24,10 @@ Fine-tuned LayoutLMv3 against a no-model baseline, on the CORD-v2 test split
 Scoring is **entity-level**: a field counts only when its type *and* full span match the reference
 exactly. A partially extracted merchant name scores zero, because a partially extracted field is
 not a usable one. Implementation in [`src/metrics.py`](src/metrics.py).
+
+**Both methods are evaluated on CORD's ground-truth words and bounding boxes** (`apply_ocr=False`),
+so these figures measure extraction *given perfect OCR*. No OCR engine is part of this pipeline, and
+accuracy on raw scans would be lower.
 
 <details>
 <summary><b>Training configuration</b></summary>
@@ -73,6 +79,10 @@ changing only the epoch count:
 **Training budget moves the result more than learning rate does within a sensible band:**
 +0.022 from doubling epochs, against 0.002 across the top three learning rates. One seed
 per configuration, so differences below roughly 0.005 are not meaningful.
+
+One methodological caveat: the sweep scores every configuration on the **test** split, so its
+"best" learning rate is selected on test data. The headline 0.948 comes from the default
+configuration, fixed before the sweep, and was not selected this way.
 
 ![MLflow runs](docs/mlflow-runs.png)
 
@@ -132,6 +142,7 @@ architectural one.
 | Semantic retrieval | **Implemented, not justified** - see below |
 | Review-priority model | **Implemented, not deployed** - see below |
 | MLflow | **Used** - 4-configuration sweep, sensitivity analysis |
+| Model-backed API extraction | **Not implemented** - the shipped container runs a stub; the model has only run offline |
 
 Not measured, and therefore not claimed: latency, cost per document, KYC or compliance
 performance, confidence intervals on any figure.
@@ -148,7 +159,7 @@ test needs a larger index with distractors and genuinely paraphrased duplicates.
 
 **Selective automation is gated on extraction quality.** The review-priority model trains on real
 labels: whether extraction fell below a usable quality bar, measured against ground truth. With
-the rule baseline, median document-level F1 is 0.545 and 84% of documents fall below the bar, so no
+the rule baseline, median document-level F1 is 0.545 and 84% of validation documents fall below the bar, so no
 confidence threshold can deliver a 5% error budget. The correct outcome is zero automation, because
 you cannot route your way out of a weak extractor. Since the model failed its acceptance criterion
 it is **not deployed**: the deterministic triage runs instead, and the service reports which path
@@ -163,8 +174,8 @@ is active.
                               |
                               v
                      +------------------+
-                     |    Extraction    |  LayoutLMv3 (GPU service)
-                     |                  |  rules baseline | stub
+                     |    Extraction    |  stub in the shipped container;
+                     |                  |  LayoutLMv3 run offline on GPU
                      +--------+---------+
                               v
                       Structured JSON        Pydantic schema
@@ -190,15 +201,18 @@ is active.
                          |          |
                          v          v
                   PostgreSQL    GPU inference
-                   + pgvector    (separate service)
+                   + pgvector    (remote, not verified)
 
      MLflow tracks training runs.
-     LangGraph orchestrates the flow above, including the branch.
+     LangGraph orchestrates validation, the confidence branch and scoring;
+     extraction runs before the graph is invoked.
 ```
 
 **The CPU container is the deployable unit.** Extraction is the only stage needing a GPU, so it
-sits behind an HTTP interface selected by `MODEL_BACKEND` (`stub`, `remote`, `local`). The service
-starts, serves and passes CI with no GPU attached.
+sits behind an interface selected by `MODEL_BACKEND` (`stub` or `remote`). The service starts, serves
+and passes CI with no GPU attached. Note what that means: the shipped `stub` returns a fixed synthetic
+receipt, so the deployed API demonstrates validation and routing, not extraction. The `remote` path
+and the notebook's serving cell have not been verified end to end.
 
 ---
 
@@ -214,8 +228,10 @@ not equal `0.3` in binary floating point, and a cent of drift decides whether a 
 `Finding` objects, and the decision is a function of those objects. A model cannot introduce an
 unsupported claim into the decision path.
 
-**Extraction reports three outcomes per field: correct, incorrect, abstained.** Abstaining is safe;
-inventing a value is not. A metric that scores them identically measures the wrong thing.
+**Abstention is modelled in the schema, not yet in the evaluation.** `FieldStatus` in
+[`src/schemas.py`](src/schemas.py) distinguishes correct, incorrect and abstained, and checks with
+missing inputs skip rather than fail. The reported metrics are standard precision, recall and F1;
+a separate abstention rate is not computed.
 
 **A model that fails its acceptance criterion is not deployed.** The review scorer only goes live
 if its threshold satisfied the configured error budget during training. Otherwise the service falls
@@ -266,7 +282,6 @@ The GPU steps also run from [`notebooks/run_colab.ipynb`](notebooks/run_colab.ip
 src/
   schemas.py          Pydantic contract shared across the pipeline
   data.py             CORD-v2 loader and BIO label construction
-  parse.py            Chunking with page and bounding-box provenance
   extract.py          Extraction backends behind one interface
   baseline.py         Keyword and position rules, no model
   train_extractor.py  LayoutLMv3 fine-tune, MLflow tracked
@@ -289,7 +304,13 @@ tests/                Test suite
   extraction, not regulatory performance.
 - **Single training run.** No repeated seeds, no confidence intervals. With 100 test documents the
   interval around 0.948 is not tight, and a rerun would move the third decimal.
-- **GPU inference is evaluated separately** from the CPU API service.
+- **Evaluation assumes perfect OCR.** Words and boxes come from CORD's annotations, not an OCR engine.
+- **The deployed API does not run the model.** It ships with a stub backend; the fine-tuned model has
+  only been run offline via `trainer.predict`.
+- **The validation layer is only partly fitted to receipts.** `date` is not an annotated CORD category
+  and `merchant` falls back to the first item name, so the required-fields check flags most real
+  receipts; line-item quantity is fixed at 1, so the per-line arithmetic check cannot fail on
+  extracted data.
 - **Retrieval is semantic search, not RAG.** Nothing retrieved is injected into a generation step.
 - **Indonesian number formatting.** Amounts use `.` as a thousands separator, so `12.000` is twelve
   thousand. Parsing assumes this convention.

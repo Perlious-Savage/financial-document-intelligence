@@ -5,10 +5,15 @@ meaningful fraud or AML target in it, and inventing one would produce a number t
 measures nothing. What is genuinely predictable here is whether an extraction is
 likely to be wrong and therefore worth a human's time.
 
-The training label is real rather than synthetic: for each document in the held-out
-split, did the extraction disagree with the ground truth on any field? The model
-predicts that from confidence and validation findings. That makes this ordinary
-selective prediction, which is a defensible thing to build.
+The training label is real rather than synthetic: for each document, is extraction
+quality below a usable bar (document-level entity F1 < 0.8 against the CORD ground
+truth)? See train_review.py. The model predicts that from confidence and validation
+findings, which makes this ordinary selective prediction.
+
+Known limitation: the label and features were built from the keyword baseline's
+predictions, which carry no confidence scores. The two confidence features are
+therefore 1.0 whenever any monetary field was extracted and 0.0 otherwise: during
+training they act as a presence flag, not as a confidence.
 
 Before any model is trained the API still works, using the deterministic rule below.
 Which path produced a decision is always reported.

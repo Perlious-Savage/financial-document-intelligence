@@ -16,15 +16,18 @@ import json
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
-
-from .extract import BACKEND, extract
-from .graph import analyze
-from .schemas import AnalysisResult, ExtractedReceipt
 
 ROOT = Path(__file__).resolve().parent.parent
+# Must run before importing .extract, which reads MODEL_BACKEND at import time; loading
+# afterwards silently ignores the backend configured in .env.
 # Explicit path: find_dotenv() walks the call stack and fails in some embedding contexts.
 load_dotenv(ROOT / ".env")
+
+from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: E402
+
+from .extract import BACKEND, extract  # noqa: E402
+from .graph import analyze  # noqa: E402
+from .schemas import AnalysisResult, ExtractedReceipt  # noqa: E402
 
 ARTIFACTS = ROOT / "artifacts"
 
