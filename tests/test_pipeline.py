@@ -121,13 +121,20 @@ def test_baseline_prefers_the_longer_trigger_phrase():
     assert predict_tags(["TOTAL", "DISC", "-60.000"])[0] == "B-sub_total.discount_price"
 
 
-def test_threshold_fails_closed_when_budget_is_unreachable():
+def test_threshold_fails_closed_when_budget_is_unreachable(tmp_path, monkeypatch):
     """If no threshold meets the error budget, auto-accept nothing.
 
     The earlier default accepted everything, which produced 98% auto-acceptance at an
     83% error rate. A review system that fails open is worse than no review system.
     """
+    from src import risk
     from src.risk import train_review_model
+
+    # train_review_model writes its model and threshold to disk. Redirect them, or every
+    # test run overwrites the committed artifacts with this toy model.
+    monkeypatch.setattr(risk, "MODEL_PATH", tmp_path / "m.joblib")
+    monkeypatch.setattr(risk, "THRESHOLD_PATH", tmp_path / "t.json")
+    monkeypatch.setattr(risk, "ARTIFACTS", tmp_path)
 
     # Features carry no signal and almost every document is bad: no threshold can
     # deliver a 5% error rate.

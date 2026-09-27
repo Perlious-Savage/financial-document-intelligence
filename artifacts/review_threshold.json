@@ -2,10 +2,10 @@
   "threshold": 0.0,
   "target_error_budget": 0.05,
   "auto_accept_coverage": 0.0,
-  "val_pr_auc": 0.8,
-  "val_brier": 0.15999999999999998,
-  "n_train": 60,
-  "n_val": 40,
+  "val_pr_auc": 0.9547990951316303,
+  "val_brier": 0.10871016433483546,
+  "n_train": 480,
+  "n_val": 320,
   "features": [
     "mean_confidence",
     "min_confidence",
@@ -16,6 +16,6 @@
     "has_total"
   ],
   "budget_met": false,
-  "base_error_rate": 0.8,
+  "base_error_rate": 0.840625,
   "note": "Threshold selected on the validation split and frozen. When no threshold satisfies the budget, the model fails closed: nothing is auto-accepted."
 }

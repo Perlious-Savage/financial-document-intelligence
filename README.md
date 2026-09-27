@@ -14,7 +14,8 @@ machine-written record of the hyperparameter sweep.
 ## Results
 
 Fine-tuned LayoutLMv3 against a no-model baseline, on the CORD-v2 test split
-(100 documents, 1,309 entities, 59 field types).
+(100 documents, 1,309 entities). The label set has 59 BIO tags covering 29 entity types, 24 of which
+appear in the test split.
 
 | Method | Precision | Recall | F1 |
 |:---|---:|---:|---:|
@@ -101,6 +102,9 @@ smoke tests for the sweep harness - their low scores are expected and are not re
 The aggregate jump is not spread evenly. The rule baseline handles fields printed beside their own
 label, and scores **exactly zero** on fields identified by position alone: a quantity in a column,
 a unit price placed relative to its line item. Closing that gap is what a layout-aware model is for.
+
+The baseline scored 0.000 on 13 of the 24 test entity types; the fine-tuned model reached at least
+0.80 F1 on 8 of those 13. The five with the most test examples:
 
 | Field | Support | Rules | LayoutLMv3 |
 |:---|---:|---:|---:|
@@ -323,5 +327,5 @@ evaluation setup, which is context rather than a like-for-like comparison.
 ## Dataset and licensing
 
 Training data: [CORD-v2](https://huggingface.co/datasets/naver-clova-ix/cord-v2), CC-BY-4.0.
-Base model: `microsoft/layoutlmv3-base`, CC-BY-NC-4.0, so the fine-tuned model inherits the
-non-commercial term.
+Base model: `microsoft/layoutlmv3-base`, CC-BY-NC-SA-4.0. The fine-tuned model is a derivative, so it
+is non-commercial and must be shared under the same licence.
